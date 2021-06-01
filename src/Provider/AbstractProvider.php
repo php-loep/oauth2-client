@@ -22,6 +22,7 @@ use League\OAuth2\Client\Grant\GrantFactory;
 use League\OAuth2\Client\OptionProvider\OptionProviderInterface;
 use League\OAuth2\Client\OptionProvider\PostAuthOptionProvider;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
+use League\OAuth2\Client\Provider\Exception\ResponseParsingException;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Token\AccessTokenInterface;
 use League\OAuth2\Client\Tool\ArrayAccessorTrait;
@@ -520,6 +521,8 @@ abstract class AbstractProvider
      * @param  mixed $grant
      * @param  array $options
      * @throws IdentityProviderException
+     * @throws ResponseParsingException if the flag $mayThrowResponseParsingException is true and
+     *                                  response body cannot be parsed.
      * @return AccessTokenInterface
      */
     public function getAccessToken($grant, array $options = [])
@@ -613,6 +616,8 @@ abstract class AbstractProvider
      *
      * @param  RequestInterface $request
      * @throws IdentityProviderException
+     * @throws ResponseParsingException if the flag $mayThrowResponseParsingException is true and
+     *                                  response body cannot be parsed.
      * @return mixed
      */
     public function getParsedResponse(RequestInterface $request)
@@ -665,9 +670,9 @@ abstract class AbstractProvider
     /**
      * Parses the response according to its content-type header.
      *
-     * @throws UnexpectedValueException
+     * @throws ResponseParsingException if response body cannot be parsed.
      * @param  ResponseInterface $response
-     * @return array
+     * @return array|string
      */
     protected function parseResponse(ResponseInterface $response)
     {
@@ -686,11 +691,14 @@ abstract class AbstractProvider
             return $this->parseJson($content);
         } catch (UnexpectedValueException $e) {
             if (strpos($type, 'json') !== false) {
-                throw $e;
+                throw new ResponseParsingException($response, $content, $e->getMessage(), $e->getCode(), $e);
             }
 
+            // for any other content types
             if ($response->getStatusCode() == 500) {
-                throw new UnexpectedValueException(
+                throw new ResponseParsingException(
+                    $response,
+                    $content,
                     'An OAuth server error was encountered that did not contain a JSON body',
                     0,
                     $e
@@ -774,6 +782,8 @@ abstract class AbstractProvider
      *
      * @param  AccessToken $token
      * @return mixed
+     * @throws ResponseParsingException if the flag $mayThrowResponseParsingException is true and
+     *                                  response body cannot be parsed.
      */
     protected function fetchResourceOwnerDetails(AccessToken $token)
     {
